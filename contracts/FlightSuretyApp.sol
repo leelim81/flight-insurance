@@ -25,16 +25,23 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
     address private contractOwner;          // Account used to deploy contract
+    bool operational = true;
+    FlightSuretyData flightSuretyData;
+
+    // For multi party consensus
+    uint constant MIN_MULTI_CONSENT = 1;
+    address[] multiCalls = new address[](0);
 
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
         uint256 updatedTimestamp;        
         address airline;
+        bool isAdmin;
     }
-    mapping(bytes32 => Flight) private flights;
+    mapping(address => Flight) private flights;
+    mapping(address => bool) private airlineVotes;
 
- 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
     /********************************************************************************************/
@@ -50,7 +57,7 @@ contract FlightSuretyApp {
     modifier requireIsOperational() 
     {
          // Modify to call data contract's status
-        require(true, "Contract is currently not operational");  
+        require(operational, "Contract is currently not operational");  
         _;  // All modifiers require an "_" which indicates where the function body will be added
     }
 
@@ -73,10 +80,12 @@ contract FlightSuretyApp {
     */
     constructor
                                 (
+                                    address dataContract
                                 ) 
                                 public 
     {
         contractOwner = msg.sender;
+        flightSuretyData =  FlightSuretyData(dataContract);
     }
 
     /********************************************************************************************/
@@ -85,31 +94,54 @@ contract FlightSuretyApp {
 
     function isOperational() 
                             public 
-                            pure 
+                            view 
                             returns(bool) 
     {
-        return true;  // Modify to call data contract's status
+        return operational;  // Modify to call data contract's status
+    }
+
+    function setOperatingStatus(bool mode) external requireContractOwner
+    {
+        require(mode != operational, "Requested mode is same as existing mode");
+        require(flights[msg.sender].isAdmin, "Caller does not have admin rights");
+
+        bool hasCalled = false;
+        for(uint i=0; i<multiCalls.length; i++){
+            if(multiCalls[i] == msg.sender){
+                hasCalled = true;
+                break;
+            }
+        }
+
+        require(!hasCalled, "Caller has already called this function.");
+
+        multiCalls.push(msg.sender);
+        if (multiCalls.length== MIN_MULTI_CONSENT){
+            operational = mode;
+            multiCalls = new address[](0);
+        }
     }
 
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
 
-  
    /**
     * @dev Add an airline to the registration queue
     *
-    */   
+    */
     function registerAirline
-                            (   
+                            (
+                                address account
                             )
-                            external
-                            pure
-                            returns(bool success, uint256 votes)
+                            public
+                            requireIsOperational
     {
-        return (success, 0);
+        (bool success, uint votes) = flightSuretyData.registerAirline(account);
+        if (success == true) {
+            airlineVotes[account] = false;
+        }
     }
-
 
    /**
     * @dev Register a future flight for insuring.
@@ -334,4 +366,10 @@ contract FlightSuretyApp {
 
 // endregion
 
-}   
+}
+
+
+
+contract FlightSuretyData {
+    function registerAirline(address account) external returns(bool, uint256);
+}

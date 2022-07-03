@@ -99,11 +99,13 @@ contract FlightSuretyData {
     *
     */   
     function registerAirline
-                            (   
+                            (
+                                address account
                             )
                             external
-                            pure
+                            returns(bool success, uint256 votes)
     {
+        return (true, 0);
     }
 
 
