@@ -7,7 +7,7 @@ contract('Flight Surety Tests', async (accounts) => {
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
-    // await config.flightSuretyData.authorizeCaller(config.flightSuretyApp.address, {from: config.owner});
+    await config.flightSuretyData.authorizeContract(config.flightSuretyApp.address, {from: config.owner});
   });
 
   /****************************************************************************************/
@@ -70,6 +70,13 @@ contract('Flight Surety Tests', async (accounts) => {
       await config.flightSuretyData.setOperatingStatus(true);
 
   });
+
+  it(`App contract is authorized in data contract`, async function () {
+
+    let result = await config.flightSuretyData.isContractAuthorized.call(config.flightSuretyApp.address);
+    assert.equal(result, true, "app contract is not authorized");
+
+});
 
   it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
     

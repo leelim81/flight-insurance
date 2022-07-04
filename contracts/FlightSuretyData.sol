@@ -12,6 +12,7 @@ contract FlightSuretyData {
     address private contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
 
+    mapping(address => uint256) authorizedContracts;
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
     /********************************************************************************************/
@@ -56,6 +57,20 @@ contract FlightSuretyData {
         _;
     }
 
+    modifier isCallerAuthorized()
+    {
+        require(authorizedContracts[msg.sender] == 1, "Caller is not authorized");
+        _;
+    }
+
+    function authorizeContract(address dataContract) external requireContractOwner{
+        authorizedContracts[dataContract] = 1;
+    }
+
+    function deauthorizeContract(address dataContract) external requireContractOwner{
+        delete authorizedContracts[dataContract];
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -73,6 +88,13 @@ contract FlightSuretyData {
         return operational;
     }
 
+    function isContractAuthorized(address contractAddress) 
+                            external 
+                            view
+                            returns(bool) 
+    {
+        return (authorizedContracts[contractAddress] == 1);
+    }
 
     /**
     * @dev Sets contract operations on/off

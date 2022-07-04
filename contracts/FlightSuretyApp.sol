@@ -37,10 +37,9 @@ contract FlightSuretyApp {
         uint8 statusCode;
         uint256 updatedTimestamp;        
         address airline;
-        bool isAdmin;
     }
     mapping(address => Flight) private flights;
-    mapping(address => bool) private airlineVotes;
+    mapping(address => address[]) private airlineVotes;
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -59,6 +58,23 @@ contract FlightSuretyApp {
          // Modify to call data contract's status
         require(operational, "Contract is currently not operational");  
         _;  // All modifiers require an "_" which indicates where the function body will be added
+    }
+
+    modifier requireHasNotVoted(address account) 
+    {
+
+        bool hasVoted = false;
+
+        address[] voters = airlineVotes[account];
+
+        for (uint i = 0; i < voters.length; i++) {
+            if(voters[i] == msg.sender){
+                hasVoted = true;
+            }
+        }
+        
+        require(!hasVoted, "You have already voted for this airline.");  
+        _;
     }
 
     /**
@@ -103,7 +119,6 @@ contract FlightSuretyApp {
     function setOperatingStatus(bool mode) external requireContractOwner
     {
         require(mode != operational, "Requested mode is same as existing mode");
-        require(flights[msg.sender].isAdmin, "Caller does not have admin rights");
 
         bool hasCalled = false;
         for(uint i=0; i<multiCalls.length; i++){
@@ -136,10 +151,11 @@ contract FlightSuretyApp {
                             )
                             public
                             requireIsOperational
+                            requireHasNotVoted(account)
     {
         (bool success, uint votes) = flightSuretyData.registerAirline(account);
         if (success == true) {
-            airlineVotes[account] = false;
+            airlineVotes[account].push(msg.sender);
         }
     }
 
