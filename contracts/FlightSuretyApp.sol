@@ -29,7 +29,9 @@ contract FlightSuretyApp {
     FlightSuretyData flightSuretyData;
 
     // For multi party consensus
-    uint constant MIN_MULTI_CONSENT = 1;
+    uint256 constant MIN_MULTI_CONSENT_FOR_STATUS_CHANGE = 1;
+
+                                
     address[] multiCalls = new address[](0);
 
     struct Flight {
@@ -37,9 +39,10 @@ contract FlightSuretyApp {
         uint8 statusCode;
         uint256 updatedTimestamp;        
         address airline;
+        string flightId;
+        string departure;
     }
-    mapping(address => Flight) private flights;
-    mapping(address => address[]) private airlineVotes;
+    mapping(bytes32 => Flight) private flights;
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -60,23 +63,6 @@ contract FlightSuretyApp {
         _;  // All modifiers require an "_" which indicates where the function body will be added
     }
 
-    modifier requireHasNotVoted(address account) 
-    {
-
-        bool hasVoted = false;
-
-        address[] voters = airlineVotes[account];
-
-        for (uint i = 0; i < voters.length; i++) {
-            if(voters[i] == msg.sender){
-                hasVoted = true;
-            }
-        }
-        
-        require(!hasVoted, "You have already voted for this airline.");  
-        _;
-    }
-
     /**
     * @dev Modifier that requires the "ContractOwner" account to be the function caller
     */
@@ -85,6 +71,20 @@ contract FlightSuretyApp {
         require(msg.sender == contractOwner, "Caller is not contract owner");
         _;
     }
+
+    modifier requireAirlineActive()
+    {
+        require(flightSuretyData.isAirlineActive(msg.sender), "Caller need to be funded to partipate");
+        _;
+    }
+
+    modifier requireFlightNotRegister(string flightId)
+    {
+        bytes32 hashkey = keccak256(abi.encodePacked(msg.sender,flightId));
+        require(!flights[hashkey].isRegistered, "Caller need to be funded to partipate");
+        _;
+    }
+                                    
 
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
@@ -131,7 +131,7 @@ contract FlightSuretyApp {
         require(!hasCalled, "Caller has already called this function.");
 
         multiCalls.push(msg.sender);
-        if (multiCalls.length== MIN_MULTI_CONSENT){
+        if (multiCalls.length== MIN_MULTI_CONSENT_FOR_STATUS_CHANGE){
             operational = mode;
             multiCalls = new address[](0);
         }
@@ -147,16 +147,14 @@ contract FlightSuretyApp {
     */
     function registerAirline
                             (
-                                address account
+                                address airlineAddress,
+                                string memory airlineName
                             )
                             public
                             requireIsOperational
-                            requireHasNotVoted(account)
+                            requireAirlineActive
     {
-        (bool success, uint votes) = flightSuretyData.registerAirline(account);
-        if (success == true) {
-            airlineVotes[account].push(msg.sender);
-        }
+        bool success = flightSuretyData.registerAirline(airlineAddress, airlineName, msg.sender);
     }
 
    /**
@@ -164,13 +162,29 @@ contract FlightSuretyApp {
     *
     */  
     function registerFlight
-                                (
-                                )
-                                external
-                                pure
+                            (
+                                string flightId,
+                                string departure,
+                                uint256 timestamp
+                            )
+                            external
+                            requireIsOperational
+                            requireAirlineActive
+                            requireFlightNotRegister(flightId)
     {
+        bytes32 hashkey = keccak256(abi.encodePacked(msg.sender,flightId));
+
+        flights[hashkey] = Flight({
+                                    isRegistered: true,
+                                    statusCode: STATUS_CODE_UNKNOWN,
+                                    updatedTimestamp: timestamp,
+                                    airline: msg.sender,
+                                    flightId: flightId,
+                                    departure: departure  
+                                });
 
     }
+
     
    /**
     * @dev Called after oracle has updated flight status
@@ -380,6 +394,16 @@ contract FlightSuretyApp {
         return random;
     }
 
+    function fund
+                            (   
+                            )
+                            public
+                            payable
+                            requireIsOperational
+    {
+        flightSuretyData.fund(msg.sender, msg.value);
+    }
+
 // endregion
 
 }
@@ -387,5 +411,7 @@ contract FlightSuretyApp {
 
 
 contract FlightSuretyData {
-    function registerAirline(address account) external returns(bool, uint256);
+    function registerAirline(address account, string airlineName, address voter) external returns(bool);
+    function isAirlineActive(address airlineAddress) public view returns(bool);
+    function fund(address , uint amount) public payable;
 }
