@@ -27,6 +27,7 @@ contract FlightSuretyApp {
     address private contractOwner;          // Account used to deploy contract
     bool operational = true;
     FlightSuretyData flightSuretyData;
+    address flightSuretyDataAddress;
 
     // For multi party consensus
     uint256 constant MIN_MULTI_CONSENT_FOR_STATUS_CHANGE = 1;
@@ -43,6 +44,7 @@ contract FlightSuretyApp {
         string departure;
     }
     mapping(bytes32 => Flight) private flights;
+    mapping(string => uint16) private flightIds;
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -81,7 +83,13 @@ contract FlightSuretyApp {
     modifier requireFlightNotRegister(string flightId)
     {
         bytes32 hashkey = keccak256(abi.encodePacked(msg.sender,flightId));
-        require(!flights[hashkey].isRegistered, "Caller need to be funded to partipate");
+        require(!flights[hashkey].isRegistered, "Caller need to be registered");
+        _;
+    }
+
+    modifier requireUniqueFlightId(string flightId)
+    {
+        require(flightIds[flightId]==0, "flightId should be unique");
         _;
     }
                                     
@@ -102,6 +110,7 @@ contract FlightSuretyApp {
     {
         contractOwner = msg.sender;
         flightSuretyData =  FlightSuretyData(dataContract);
+        flightSuretyDataAddress = dataContract;
     }
 
     /********************************************************************************************/
@@ -169,7 +178,7 @@ contract FlightSuretyApp {
                             )
                             external
                             requireIsOperational
-                            requireAirlineActive
+                            requireUniqueFlightId(flightId)
                             requireFlightNotRegister(flightId)
     {
         bytes32 hashkey = keccak256(abi.encodePacked(msg.sender,flightId));
@@ -182,6 +191,8 @@ contract FlightSuretyApp {
                                     flightId: flightId,
                                     departure: departure  
                                 });
+
+        flightIds[flightId] = 1; // keep track of registered flightId
 
     }
 
@@ -198,8 +209,17 @@ contract FlightSuretyApp {
                                     uint8 statusCode
                                 )
                                 internal
-                                pure
     {
+
+        bytes32 hashkey = keccak256(abi.encodePacked(airline, flight));
+        require(flights[hashkey].isRegistered, "Flight is not registered.");
+
+        flights[hashkey].updatedTimestamp = timestamp;
+        flights[hashkey].statusCode = statusCode;
+
+        if (statusCode == STATUS_CODE_LATE_AIRLINE) {
+            flightSuretyData.creditInsurees(flight);
+        }
     }
 
 
@@ -222,7 +242,20 @@ contract FlightSuretyApp {
                                             });
 
         emit OracleRequest(index, airline, flight, timestamp);
-    } 
+    }
+
+    // Check status of any flight
+    function checkFlightStatus
+                            (
+                                string flightId
+                            )
+                            external
+                            view
+                            returns(uint8)
+    {
+            bytes32 hashkey = keccak256(abi.encodePacked(msg.sender,flightId));
+            return flights[hashkey].statusCode;
+    }
 
 
 // region ORACLE MANAGEMENT
@@ -267,6 +300,8 @@ contract FlightSuretyApp {
     // Oracles track this and if they have a matching index
     // they fetch data and submit a response
     event OracleRequest(uint8 index, address airline, string flight, uint256 timestamp);
+
+    event ConsoleLog(string flight);
 
 
     // Register an oracle with the contract
@@ -316,8 +351,8 @@ contract FlightSuretyApp {
                         )
                         external
     {
-        require((oracles[msg.sender].indexes[0] == index) || (oracles[msg.sender].indexes[1] == index) || (oracles[msg.sender].indexes[2] == index), "Index does not match oracle request");
 
+        require((oracles[msg.sender].indexes[0] == index) || (oracles[msg.sender].indexes[1] == index) || (oracles[msg.sender].indexes[2] == index), "Index does not match oracle request");
 
         bytes32 key = keccak256(abi.encodePacked(index, airline, flight, timestamp)); 
         require(oracleResponses[key].isOpen, "Flight or timestamp do not match oracle request");
@@ -334,6 +369,7 @@ contract FlightSuretyApp {
             // Handle flight status as appropriate
             processFlightStatus(airline, flight, timestamp, statusCode);
         }
+       
     }
 
 
@@ -394,15 +430,6 @@ contract FlightSuretyApp {
         return random;
     }
 
-    function fund
-                            (   
-                            )
-                            public
-                            payable
-                            requireIsOperational
-    {
-        flightSuretyData.fund(msg.sender, msg.value);
-    }
 
 // endregion
 
@@ -413,5 +440,5 @@ contract FlightSuretyApp {
 contract FlightSuretyData {
     function registerAirline(address account, string airlineName, address voter) external returns(bool);
     function isAirlineActive(address airlineAddress) public view returns(bool);
-    function fund(address , uint amount) public payable;
+    function creditInsurees(string flightId) external;
 }

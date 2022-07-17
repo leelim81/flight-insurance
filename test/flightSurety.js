@@ -101,7 +101,11 @@ contract('Flight Surety Tests', async (accounts) => {
     
     // ARRANGE
     let newAirline = config.firstAirline;
-    await config.flightSuretyApp.fund({from: config.owner, value: 10*10**18});
+    await config.flightSuretyData.fund({from: config.owner, value: 10*10**18});
+
+  
+
+    await config.flightSuretyApp.registerAirline(newAirline, "second airline", {from: config.owner});
 
     // ACT
     try {
@@ -141,8 +145,8 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // ARRANGE
     // Fund airlines and let them vote for the 5th airline
-    await config.flightSuretyApp.fund({from: accounts[3], value: 10*10**18});
-    await config.flightSuretyApp.fund({from: accounts[4], value: 10*10**18});
+    await config.flightSuretyData.fund({from: accounts[3], value: 10*10**18});
+    await config.flightSuretyData.fund({from: accounts[4], value: 10*10**18});
     await config.flightSuretyApp.registerAirline(accounts[5], "", {from: accounts[3]});
     await config.flightSuretyApp.registerAirline(accounts[5], "", {from: accounts[4]});
 
@@ -164,14 +168,14 @@ contract('Flight Surety Tests', async (accounts) => {
   it("Passenger can pay up to 1 ether for purchasing flight insurance.", async () => {
   
     try {
-        await config.flightSuretyData.buy("SQ123", {from: config.firstPassenger, value: 0.8 * 10**18});
+        await config.flightSuretyData.buy("SQ123", {from: config.firstPassenger, value: 1.0 * 10**18});
     }
     catch(e) {
       console.log(e);
     }
 
     let insuredAmount = await config.flightSuretyData.getInsuredAmount("SQ123", {from: config.firstPassenger}); 
-    assert.equal(insuredAmount, 0.8 * 10**18, "Passenger should have purchased insurnace");
+    assert.equal(insuredAmount, 1.0 * 10**18, "Passenger should have purchased insurnace");
   });
 
   it("Upon startup, 20 oracles are registered and their assigned indexes are persisted in memory", async () => {
@@ -183,9 +187,49 @@ contract('Flight Surety Tests', async (accounts) => {
     for(let a=10; a < 30; a++) {      
         await config.flightSuretyApp.registerOracle({ from: accounts[a], value: fee});
       let result = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a]});
+    //   console.log(`Oracle Registered ${a}: ${result}`);
       assert.equal(result.length, 3, 'Oracle did not return 3 indexes');
     }
   });
+
+
+  it("Server will loop through all registered oracles, identify those oracles for which the OracleRequest event applies," +
+  "and respond by calling into FlightSuretyApp contract with random status code of Unknown (0), On Time (10) or Late Airline" + 
+  "(20), Late Weather (30), Late Technical (40), or Late Other (50)", async () => {
+    // ARRANGE
+    let flight = 'SQ123';
+    let timestamp = Math.floor(Date.now() / 1000); //convert to seconds
+
+    // Generate a request for oracles to fetch flight information
+    await config.flightSuretyApp.fetchFlightStatus(config.firstAirline, flight, timestamp);
+
+    for(let a=10; a < 30; a++) {
+      let oracleIndexes = await config.flightSuretyApp.getMyIndexes({from: accounts[a]});
+      for(let idx=0;idx<3;idx++) {
+        try {
+          // Loop through the oracles until a index match is found
+          await config.flightSuretyApp.submitOracleResponse(oracleIndexes[idx], config.firstAirline, flight, timestamp, 20, { from: accounts[a] });
+        } catch(e) {
+            // console.log(e);
+        }
+      }
+    }
+    let flightStatus = await config.flightSuretyApp.checkFlightStatus(flight, {from: config.firstAirline});
+    assert.equal(flightStatus, 20, 'flight status should be Late Airline (20)');
+  });
+
+  it("If flight is delayed due to airline fault, passenger receives credit of 1.5X the amount they paid", async () => {
+    let passengerCredit = await config.flightSuretyData.getPassengerCredit.call({from: config.firstPassenger}); 
+    assert.equal(passengerCredit, 1.5 * 10**18, "Passenger should have 1.5 eth as part of late flight payout");
+  });
+  
+  it("(passenger) can withdraw any funds owed to them as a result of receiving credit for insurance payout", async () => {
+
+    let withdrawStatus = await config.flightSuretyData.withdraw({from: config.firstPassenger});
+    assert.equal(withdrawStatus.receipt.status,  true, "Passenger should be able to withdraw credits.");
+
+  });
+
 
 
 });

@@ -38,6 +38,7 @@ contract FlightSuretyData {
         mapping(string => uint) insuredFlights;
     }
      mapping(address => Passenger) private passengers;
+    mapping(string => address[]) private insuredPassengers;
 
 
     /********************************************************************************************/
@@ -272,6 +273,9 @@ contract FlightSuretyData {
         // Store insured value and transfer
         passengers[msg.sender].insuredFlights[flightId] = msg.value;
         msg.sender.transfer(msg.value);
+
+        // Keep track of insured for making claims later
+        insuredPassengers[flightId].push(msg.sender);
     }
 
     function getInsuredAmount
@@ -291,23 +295,41 @@ contract FlightSuretyData {
     */
     function creditInsurees
                                 (
+                                    string flightCode
                                 )
                                 external
-                                pure
+                                requireIsOperational
     {
+        address[] insuredPassengerAddresses = insuredPassengers[flightCode];
+
+        for (uint256 c = 0; c < insuredPassengerAddresses.length; c++) {
+            Passenger insured = passengers[insuredPassengerAddresses[c]];
+            uint256 payout = insured.insuredFlights[flightCode].mul(3).div(2); // 1.5
+            insured.insuredFlights[flightCode] = 0;
+            insured.credit = insured.credit + payout;
+        }
     }
     
+    function getPassengerCredit() external view returns (uint256) {
+        return passengers[msg.sender].credit;
+    }
 
     /**
      *  @dev Transfers eligible payout funds to insuree
      *
     */
-    function pay
+    function withdraw
                             (
                             )
                             external
-                            pure
+                            requireIsOperational
     {
+        require(msg.sender == tx.origin, "Contracts not allowed");
+        require(passengers[msg.sender].credit > 0, "Payee have 0 balance");
+        uint256 credit = passengers[msg.sender].credit;
+        require(address(this).balance > credit, "Contract does not have enough funds");
+        passengers[msg.sender].credit = 0;
+        msg.sender.transfer(credit);
     }
 
    /**
@@ -317,16 +339,14 @@ contract FlightSuretyData {
     */   
     function fund
                             (
-                                address payerAddress,
-                                uint amount
                             )
                             public
                             payable
                             requireIsOperational
     {
-        airlines[payerAddress].fund = airlines[payerAddress].fund.add(amount);
-        if(airlines[payerAddress].fund>=MINIMUM_AIRLINE_FUNDING && !airlines[payerAddress].isActive){
-            airlines[payerAddress].isActive = true;
+        airlines[msg.sender].fund = airlines[msg.sender].fund.add(msg.value);
+        if(airlines[msg.sender].fund>=MINIMUM_AIRLINE_FUNDING && !airlines[msg.sender].isActive){
+            airlines[msg.sender].isActive = true;
         }
     }
 
@@ -351,7 +371,7 @@ contract FlightSuretyData {
                             external 
                             payable 
     {
-        fund(msg.sender, msg.value);
+        fund();
     }
 
 
