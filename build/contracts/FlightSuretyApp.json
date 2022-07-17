@@ -23179,10 +23179,16 @@
       "links": {},
       "address": "0x8FeE680D88f08b5706e1b43d96c8039DA9F0bB6a",
       "transactionHash": "0xe8e6043f45a54547d6928009d5667bf62308366120c4b82946ebb25a6757649e"
+    },
+    "1658047981853": {
+      "events": {},
+      "links": {},
+      "address": "0x8e99bb975008Cdbe7bc57Fa668B2904BfBa94820",
+      "transactionHash": "0x53f25aef3e5ca761f59decf02aadb6a6eef861dffb288abff6ab6ea00e06499a"
     }
   },
   "schemaVersion": "3.0.0",
-  "updatedAt": "2022-07-17T07:39:28.488Z",
+  "updatedAt": "2022-07-17T08:56:18.401Z",
   "devdoc": {
     "methods": {
       "registerAirline(address,string)": {

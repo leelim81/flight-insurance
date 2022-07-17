@@ -19170,10 +19170,16 @@
       "links": {},
       "address": "0xbEb6B9241b72092B933167cCD5E8049Bd67790D1",
       "transactionHash": "0x99126300e615cad83256bd3afa560622c343327c5858c01ce27bc6c2063d921a"
+    },
+    "1658047981853": {
+      "events": {},
+      "links": {},
+      "address": "0x621A32431971510De3088a0689cDdc13f8dab2BA",
+      "transactionHash": "0x25ed67edd72646f8c189ca83c86d63b8cdf9a40af07bfaf72a1d5f7669ac6a05"
     }
   },
   "schemaVersion": "3.0.0",
-  "updatedAt": "2022-07-17T07:39:28.480Z",
+  "updatedAt": "2022-07-17T08:56:18.394Z",
   "devdoc": {
     "methods": {
       "buy(string)": {
