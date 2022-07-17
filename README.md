@@ -52,8 +52,8 @@ Deploy the contents of the ./dapp folder
 * [Web3Js Reference](https://github.com/ethereum/wiki/wiki/JavaScript-API)
 
 ## Library version
-Node.js v10.7.0
-Solidity v0.4.25
-Truffle v5.0.0
-truffle-hdwallet-provider v1.0.2
-Web3 v1.7.4
+- Node.js v10.7.0
+- Solidity v0.4.25
+- Truffle v5.0.0
+- truffle-hdwallet-provider v1.0.2
+- Web3 v1.7.4
